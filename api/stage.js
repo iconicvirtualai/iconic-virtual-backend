@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log("REQ BODY:", req.body);
     const body = req.body || {};  // Vercel should parse JSON automatically
     const { image_url, room_type, style } = body;
 
