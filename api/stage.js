@@ -7,7 +7,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { image_url, room_type, style } = JSON.parse(req.body);
+    // Use req.body directly (Vercel auto-parses JSON if Content-Type is application/json)
+    const { image_url, room_type, style } = req.body;
+
+    if (!image_url || !room_type || !style) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     const apiUrl = "https://api.virtualstagingai.app/v1/render/create";
 
