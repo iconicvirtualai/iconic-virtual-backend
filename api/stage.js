@@ -7,15 +7,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("REQ BODY:", req.body);
-    const body = req.body || {};  // Vercel should parse JSON automatically
-    const { image_url, room_type, style } = body;
+    const { image_url, room_type, style } = req.body || {};
 
     if (!image_url || !room_type || !style) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Call VirtualStagingAI
+    // Call VirtualStagingAI API
     const vsaiRes = await fetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
