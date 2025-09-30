@@ -2,8 +2,9 @@ import fetch from "node-fetch";
 import Dropbox from "dropbox";
 
 export default async function handler(req, res) {
-console.log("Incoming method:", req.method);
-console.log("Incoming body:", req.body);  
+  console.log("Incoming method:", req.method);
+  console.log("Incoming body:", req.body);
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -15,7 +16,7 @@ console.log("Incoming body:", req.body);
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Call VirtualStagingAI API
+    // Call VirtualStagingAI
     const vsaiRes = await fetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
@@ -32,6 +33,7 @@ console.log("Incoming body:", req.body);
     });
 
     const vsaiData = await vsaiRes.json();
+    console.log("VSAI response:", vsaiData);
 
     if (!vsaiData.result_image_url) {
       return res.status(400).json({ error: "Staging failed", details: vsaiData });
