@@ -7,17 +7,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Use req.body directly (Vercel auto-parses JSON if Content-Type is application/json)
-    const { image_url, room_type, style } = req.body;
+    const body = req.body || {};  // Vercel should parse JSON automatically
+    const { image_url, room_type, style } = body;
 
     if (!image_url || !room_type || !style) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const apiUrl = "https://api.virtualstagingai.app/v1/render/create";
-
-    // Call VirtualStagingAI with image URL
-    const vsaiRes = await fetch(apiUrl, {
+    // Call VirtualStagingAI
+    const vsaiRes = await fetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
         Authorization: "Api-Key " + process.env.VSAI_API_KEY,
@@ -38,22 +36,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Staging failed", details: vsaiData });
     }
 
-    // Download staged image
+    // Upload staged image to Dropbox
     const imageBuffer = await fetch(vsaiData.result_image_url).then(r => r.buffer());
-
-    // Upload to Dropbox
     const dbx = new Dropbox.Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN, fetch });
     const dropboxPath = `/renders/${Date.now()}.jpg`;
     await dbx.filesUpload({ path: dropboxPath, contents: imageBuffer });
 
     const { link } = await dbx.filesGetTemporaryLink({ path: dropboxPath });
 
-    res.json({
+    res.status(200).json({
       preview_url: vsaiData.result_image_url,
       download_url: link,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Server error:", error);
     res.status(500).json({ error: "Something went wrong" });
   }
 }
