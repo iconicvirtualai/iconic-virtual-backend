@@ -1,0 +1,11 @@
+{
+  "name": "iconic-virtual-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "formidable": "^3.5.0",
+    "node-fetch": "^3.3.2",
+    "dropbox": "^10.34.0",
+    "stripe": "^13.0.0"
+  }
+}
