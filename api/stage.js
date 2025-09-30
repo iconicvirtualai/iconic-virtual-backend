@@ -2,6 +2,8 @@ import fetch from "node-fetch";
 import Dropbox from "dropbox";
 
 export default async function handler(req, res) {
+console.log("Incoming method:", req.method);
+console.log("Incoming body:", req.body);  
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
