@@ -25,7 +25,7 @@ export default async function handler(req, res) {
           price_data: {
             currency: "usd",
             product_data: { name: "Virtual Staging Download" },
-            unit_amount: 1999, // $19.99
+            unit_amount: 1999,
           },
           quantity: 1,
         },
