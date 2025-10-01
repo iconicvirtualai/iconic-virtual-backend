@@ -1,7 +1,16 @@
 import fetch from "node-fetch";
 import { Dropbox } from "dropbox";
 
-export default async function handler(req, res) {
+export function createStageHandler({
+  fetchImpl,
+  dropboxFactory,
+} = {}) {
+  const callFetch = fetchImpl ?? fetch;
+  const createDropbox =
+    dropboxFactory ??
+    ((options = {}) => new Dropbox({ accessToken: options.accessToken }));
+  
+  return async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -21,7 +30,9 @@ export default async function handler(req, res) {
     }
 
     // === Upload to Dropbox ===
-    const dropbox = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN });
+    const dropbox = createDropbox({
+      accessToken: process.env.DROPBOX_ACCESS_TOKEN,
+    });
     
     // Accept both data URLs ("data:image/jpeg;base64,...") and raw base64 strings.
     const hasDataUrlPrefix = image_base64.includes(",");
@@ -53,7 +64,7 @@ export default async function handler(req, res) {
     const imageUrl = link.result.url.replace("?dl=0", "?raw=1");
 
     // === Send to Virtual Staging AI ===
-    const vsaiResponse = await fetch("https://api.virtualstagingai.app/v1/render/create", {
+    const vsaiResponse = await callFetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
         "Authorization": `Api-Key ${process.env.VSAI_API_KEY}`,
@@ -79,4 +90,7 @@ export default async function handler(req, res) {
     console.error("Server error:", error);
     return res.status(500).json({ error: "Server error", details: error.message });
   }
+    };
 }
+
+export default createStageHandler();
