@@ -3,14 +3,14 @@ import Dropbox from "dropbox";
 
 export const config = {
   api: {
-    bodyParser: true, // JSON body
+    bodyParser: true,
   },
 };
 
 export default async function handler(req, res) {
   console.log("Incoming method:", req.method);
+  console.log("Incoming body:", req.body);
 
-  // Handle CORS
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -25,21 +25,20 @@ export default async function handler(req, res) {
   try {
     res.setHeader("Access-Control-Allow-Origin", "*");
 
-    const { image_base64, room_type, style } = req.body || {};
-
-    if (!image_base64 || !room_type || !style) {
+    const { image_url, room_type, style } = req.body || {};
+    if (!image_url || !room_type || !style) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Step A: Upload original file to Dropbox
+    // Re-upload original to Dropbox
+    const imageRes = await fetch(image_url);
+    const imageBuffer = await imageRes.buffer();
     const dbx = new Dropbox.Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN, fetch });
-    const buffer = Buffer.from(image_base64, "base64");
-    const dropboxPath = `/uploads/${Date.now()}.jpg`;
+    const uploadPath = `/uploads/${Date.now()}.jpg`;
+    await dbx.filesUpload({ path: uploadPath, contents: imageBuffer });
+    const { link: dropboxUrl } = await dbx.filesGetTemporaryLink({ path: uploadPath });
 
-    await dbx.filesUpload({ path: dropboxPath, contents: buffer });
-    const { link: originalUrl } = await dbx.filesGetTemporaryLink({ path: dropboxPath });
-
-    // Step B: Send Dropbox URL to VirtualStagingAI
+    // Call VSAI with Dropbox URL
     const vsaiRes = await fetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
@@ -47,7 +46,7 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        image_url: originalUrl,
+        image_url: dropboxUrl,
         room_type,
         style,
         add_virtually_staged_watermark: true,
@@ -62,12 +61,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Staging failed", details: vsaiData });
     }
 
-    // Step C: Return only watermarked preview to Wix
     res.status(200).json({
       preview_url: vsaiData.result_image_url,
-      message: "Preview ready. Pay to download final image."
+      message: "Preview ready. Pay to download final image.",
     });
-
   } catch (error) {
     console.error("Server error:", error);
     res.status(500).json({ error: "Something went wrong" });
