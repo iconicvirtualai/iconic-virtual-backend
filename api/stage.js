@@ -22,7 +22,23 @@ export default async function handler(req, res) {
 
     // === Upload to Dropbox ===
     const dropbox = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN });
-    const fileBuffer = Buffer.from(image_base64.split(",")[1], "base64");
+    
+    // Accept both data URLs ("data:image/jpeg;base64,...") and raw base64 strings.
+    const hasDataUrlPrefix = image_base64.includes(",");
+    const base64Payload = hasDataUrlPrefix ? image_base64.split(",", 2)[1] : image_base64;
+
+    if (!base64Payload || !base64Payload.trim()) {
+      console.warn("Invalid image payload: expected base64 string or data URL");
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
+
+    let fileBuffer;
+    try {
+      fileBuffer = Buffer.from(base64Payload, "base64");
+    } catch (decodeError) {
+      console.warn("Failed to decode base64 image payload", decodeError);
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
     const fileName = `/uploads/${Date.now()}.jpg`;
 
     await dropbox.filesUpload({
