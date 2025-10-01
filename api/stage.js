@@ -1,11 +1,16 @@
 import fetch from "node-fetch";
 import Dropbox from "dropbox";
 
+export const config = {
+  api: {
+    bodyParser: true, // JSON body
+  },
+};
+
 export default async function handler(req, res) {
   console.log("Incoming method:", req.method);
-  console.log("Incoming body:", req.body);
 
-  // Handle CORS preflight
+  // Handle CORS
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -20,12 +25,21 @@ export default async function handler(req, res) {
   try {
     res.setHeader("Access-Control-Allow-Origin", "*");
 
-    const { image_url, room_type, style } = req.body || {};
-    if (!image_url || !room_type || !style) {
+    const { image_base64, room_type, style } = req.body || {};
+
+    if (!image_base64 || !room_type || !style) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Call VirtualStagingAI
+    // Step A: Upload original file to Dropbox
+    const dbx = new Dropbox.Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN, fetch });
+    const buffer = Buffer.from(image_base64, "base64");
+    const dropboxPath = `/uploads/${Date.now()}.jpg`;
+
+    await dbx.filesUpload({ path: dropboxPath, contents: buffer });
+    const { link: originalUrl } = await dbx.filesGetTemporaryLink({ path: dropboxPath });
+
+    // Step B: Send Dropbox URL to VirtualStagingAI
     const vsaiRes = await fetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
@@ -33,7 +47,7 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        image_url,
+        image_url: originalUrl,
         room_type,
         style,
         add_virtually_staged_watermark: true,
@@ -48,18 +62,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Staging failed", details: vsaiData });
     }
 
-    // Upload staged image to Dropbox
-    const imageBuffer = await fetch(vsaiData.result_image_url).then(r => r.buffer());
-    const dbx = new Dropbox.Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN, fetch });
-    const dropboxPath = `/renders/${Date.now()}.jpg`;
-    await dbx.filesUpload({ path: dropboxPath, contents: imageBuffer });
-
-    const { link } = await dbx.filesGetTemporaryLink({ path: dropboxPath });
-
+    // Step C: Return only watermarked preview to Wix
     res.status(200).json({
       preview_url: vsaiData.result_image_url,
-      download_url: link,
+      message: "Preview ready. Pay to download final image."
     });
+
   } catch (error) {
     console.error("Server error:", error);
     res.status(500).json({ error: "Something went wrong" });
