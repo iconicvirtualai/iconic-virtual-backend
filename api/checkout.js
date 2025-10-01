@@ -1,12 +1,12 @@
 import Stripe from "stripe";
 
-export function createCheckoutHandler({
-  stripeClient,
-} = {}) {
-  const stripe =
-    stripeClient ?? new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-  return async function handler(req, res) {
+const PRICE_LOOKUP = {
+  "virtual-staging-image": process.env.STRIPE_VIRTUAL_STAGING_PRICE_ID,
+};
+
+export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -15,7 +15,23 @@ export function createCheckoutHandler({
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    
+    const { productId } = req.body;
+
+    if (typeof productId !== "string" || productId.trim() === "") {
+      return res.status(400).json({ error: "Invalid product selection" });
+    }
+
+    if (!(productId in PRICE_LOOKUP)) {
+      return res.status(400).json({ error: "Unsupported product" });
+    }
+
+    const priceId = PRICE_LOOKUP[productId];
+
+    if (typeof priceId !== "string" || priceId.trim() === "") {
+      console.error("Missing Stripe price ID for product", productId);
+      return res.status(500).json({ error: "Configuration error" });
+    }
   }
 
   try {
@@ -25,11 +41,7 @@ export function createCheckoutHandler({
       payment_method_types: ["card"],
       line_items: [
         {
-          price_data: {
-            currency: currency,
-            product_data: { name: "Virtual Staging Image" },
-            unit_amount: amount,
-          },
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -43,7 +55,4 @@ export function createCheckoutHandler({
     console.error("Stripe error:", err);
     res.status(500).json({ error: "Stripe checkout failed" });
   }
-    };
 }
-
-export default createCheckoutHandler();
