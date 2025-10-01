@@ -57,7 +57,18 @@ describe("checkout handler", () => {
 
     const req = createMockReq({
       method: "POST",
-      body: { amount: 5000, currency: "usd" },
+      body: {
+        amount: 5000,
+        currency: "usd",
+        customer_email: "customer@example.com",
+        metadata: {
+          job_id: "job_123",
+          dropbox_path: "/uploads/job_123.jpg",
+          image_url: "https://dropbox/link?raw=1",
+          room_type: "living_room",
+          style: "modern",
+        },
+      },
     });
     const res = createMockRes();
 
@@ -72,5 +83,13 @@ describe("checkout handler", () => {
     assert.equal(payload.line_items[0].price_data.unit_amount, 5000);
     assert.equal(payload.success_url, "https://example.com/thank-you");
     assert.equal(payload.cancel_url, "https://example.com/cancel");
+    assert.equal(payload.customer_email, "customer@example.com");
+    assert.deepEqual(payload.metadata, {
+      job_id: "job_123",
+      dropbox_path: "/uploads/job_123.jpg",
+      image_url: "https://dropbox/link?raw=1",
+      room_type: "living_room",
+      style: "modern",
+    });
   });
 });

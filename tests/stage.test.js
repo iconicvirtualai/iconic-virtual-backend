@@ -104,6 +104,7 @@ describe("stage handler", () => {
           },
         };
       },
+      dateNow: () => 1700000000000,
     });
 
     const req = createMockReq({
@@ -119,7 +120,14 @@ describe("stage handler", () => {
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { preview_url: "https://vsai/result" });
+    assert.deepEqual(res.body, {
+      preview_url: "https://vsai/result",
+      job_id: "job_1700000000000",
+      dropbox_path: "/uploads/job_1700000000000.jpg",
+      image_url: "https://dropbox/link?raw=1",
+      room_type: "living_room",
+      style: "scandinavian",
+    });
 
     assert.equal(uploadCalls.length, 1);
     const [uploadArgs] = uploadCalls;
