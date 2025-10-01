@@ -1,3 +1,5 @@
+import { ensureSharedLink, resolveDropbox, uploadBuffer } from "./_utils/dropbox.js";
+
 function applyCors(res) {
   if (typeof res.setHeader === "function") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -21,20 +23,6 @@ async function resolveFetch(providedFetch) {
   }
 
   return fetchPromise;
-}
-
-let dropboxCtorPromise;
-async function resolveDropboxFactory(factory, options) {
-  if (factory) {
-    return Promise.resolve(factory(options));
-  }
-
-  if (!dropboxCtorPromise) {
-    dropboxCtorPromise = import("dropbox").then((mod) => mod.Dropbox);
-  }
-
-  const Dropbox = await dropboxCtorPromise;
-  return new Dropbox(options);
 }
 
 function parseBase64Image(payload) {
@@ -61,27 +49,34 @@ function parseBase64Image(payload) {
   }
 }
 
-function toRawDropboxUrl(url) {
-  if (typeof url !== "string") {
-    return "";
+async function downloadAsBuffer(fetchImpl, url) {
+  const response = await fetchImpl(url);
+  if (!response?.ok) {
+    const status = response?.status ?? "unknown";
+    throw new Error(`Failed to download asset (${status})`);
   }
 
-  if (url.includes("?raw=1")) {
-    return url;
+  if (typeof response.arrayBuffer === "function") {
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
-  if (url.includes("?dl=0")) {
-    return url.replace("?dl=0", "?raw=1");
+  if (typeof response.buffer === "function") {
+    return response.buffer();
   }
 
-  return `${url}${url.includes("?") ? "&" : "?"}raw=1`;
+  if (response.body) {
+    const chunks = [];
+    for await (const chunk of response.body) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  throw new Error("Response body is not readable");
 }
 
-export function createStageHandler({
-  fetchImpl,
-  dropboxFactory,
-  idGenerator = () => Date.now(),
-} = {}) {
+export function createStageHandler({ fetchImpl, dropboxFactory, idGenerator = () => Date.now() } = {}) {
   let cachedFetch = fetchImpl;
 
   return async function handler(req, res) {
@@ -117,29 +112,27 @@ export function createStageHandler({
     }
 
     try {
-      const dropbox = await resolveDropboxFactory(dropboxFactory, {
-        accessToken: process.env.DROPBOX_ACCESS_TOKEN,
+      const dropbox = await resolveDropbox({
+        factory: dropboxFactory,
+        options: {
+          accessToken: process.env.DROPBOX_ACCESS_TOKEN,
+        },
       });
 
       const jobId = `job_${idGenerator()}`;
-      const filePath = `/uploads/${jobId}.jpg`;
+      const originalPath = `/renders/${jobId}/original.jpg`;
 
-      await dropbox.filesUpload({
-        path: filePath,
+      await uploadBuffer(dropbox, {
+        path: originalPath,
         contents: imageBuffer,
         mode: "add",
-        autorename: true,
+        autorename: false,
         mute: false,
       });
 
-      const link = await dropbox.sharingCreateSharedLinkWithSettings({
-        path: filePath,
-      });
+      const originalImageUrl = await ensureSharedLink(dropbox, originalPath);
 
-      const originalImageUrl = toRawDropboxUrl(link.result.url);
-
-      const activeFetch =
-        cachedFetch ?? (cachedFetch = await resolveFetch(fetchImpl));
+      const activeFetch = cachedFetch ?? (cachedFetch = await resolveFetch(fetchImpl));
 
       const vsaiResponse = await activeFetch(
         "https://api.virtualstagingai.app/v1/render/create",
@@ -167,10 +160,30 @@ export function createStageHandler({
           .json({ error: "Staging failed", details: vsaiResult });
       }
 
+      const previewBuffer = await downloadAsBuffer(
+        activeFetch,
+        vsaiResult.result_image_url,
+      );
+
+      const previewPath = `/renders/${jobId}/preview.jpg`;
+
+      await uploadBuffer(dropbox, {
+        path: previewPath,
+        contents: previewBuffer,
+        mode: { ".tag": "overwrite" },
+        autorename: false,
+        mute: true,
+      });
+
+      const previewUrl = await ensureSharedLink(dropbox, previewPath);
+
       return res.status(200).json({
-        preview_url: vsaiResult.result_image_url,
+        preview_url: previewUrl,
+        preview_vsai_url: vsaiResult.result_image_url,
         job_id: jobId,
-        dropbox_path: filePath,
+        render_id: vsaiResult.render_id,
+        dropbox_path: originalPath,
+        preview_dropbox_path: previewPath,
         image_url: originalImageUrl,
         room_type,
         style,
