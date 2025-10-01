@@ -1,8 +1,12 @@
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+export function createCheckoutHandler({
+  stripeClient,
+} = {}) {
+  const stripe =
+    stripeClient ?? new Stripe(process.env.STRIPE_SECRET_KEY);
 
-export default async function handler(req, res) {
+  return async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -39,4 +43,7 @@ export default async function handler(req, res) {
     console.error("Stripe error:", err);
     res.status(500).json({ error: "Stripe checkout failed" });
   }
+    };
 }
+
+export default createCheckoutHandler();
