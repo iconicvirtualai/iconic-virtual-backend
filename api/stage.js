@@ -14,18 +14,47 @@
    }
  
    try {
-     const { image_base64, room_type, style } = req.body;
- 
-     if (!image_base64 || !room_type || !style) {
-       return res.status(400).json({ error: "Missing required fields" });
-     }
- 
-     // === Upload to Dropbox ===
-     const dropbox = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN });
-     const fileBuffer = Buffer.from(image_base64.split(",")[1], "base64");
-     const jobId = `job_${Date.now()}`;
-     const fileName = `/uploads/${jobId}.jpg`;
- 
+    const { image_base64, room_type, style } = req.body;
+
+    if (!image_base64 || !room_type || !style) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    if (typeof image_base64 !== "string") {
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
+
+    const commaIndex = image_base64.indexOf(",");
+    const rawPayload = commaIndex !== -1 ? image_base64.slice(commaIndex + 1) : image_base64;
+    const base64Payload = rawPayload ? rawPayload.trim() : "";
+
+    if (!base64Payload) {
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
+
+    const sanitizedPayload = base64Payload.replace(/\s/g, "");
+
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(sanitizedPayload)) {
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
+
+    let fileBuffer;
+
+    try {
+      fileBuffer = Buffer.from(sanitizedPayload, "base64");
+    } catch (decodeError) {
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
+
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: "Invalid image payload" });
+    }
+
+    // === Upload to Dropbox ===
+    const dropbox = new Dropbox({ accessToken: process.env.DROPBOX_ACCESS_TOKEN });
+    const jobId = `job_${Date.now()}`;
+    const fileName = `/uploads/${jobId}.jpg`;
+
      await dropbox.filesUpload({
        path: fileName,
        contents: fileBuffer,
