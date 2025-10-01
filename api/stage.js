@@ -5,13 +5,22 @@ export default async function handler(req, res) {
   console.log("Incoming method:", req.method);
   console.log("Incoming body:", req.body);
 
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { image_url, room_type, style } = req.body || {};
+    res.setHeader("Access-Control-Allow-Origin", "*");
 
+    const { image_url, room_type, style } = req.body || {};
     if (!image_url || !room_type || !style) {
       return res.status(400).json({ error: "Missing required fields" });
     }
