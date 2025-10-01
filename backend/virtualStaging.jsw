@@ -1,0 +1,65 @@
+// backend/virtualStaging.jsw
+import { fetch } from 'wix-fetch';
+
+const BASE_API_URL = 'https://YOUR_DEPLOYMENT_URL';
+
+function withJson(response) {
+  if (!response.ok) {
+    return response.json().then((error) => Promise.reject(error));
+  }
+  return response.json();
+}
+
+export function getRoomAndStyleOptions() {
+  return fetch(`${BASE_API_URL}/api/options`, {
+    method: 'get',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  }).then(withJson);
+}
+
+export function stageImage({ imageBase64, roomType, style }) {
+  return fetch(`${BASE_API_URL}/api/stage`, {
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      image_base64: imageBase64,
+      room_type: roomType,
+      style,
+    }),
+  }).then(withJson);
+}
+
+export function createCheckoutSession({ amount, currency, customerEmail, jobId, renderId }) {
+  return fetch(`${BASE_API_URL}/api/checkout`, {
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      amount,
+      currency,
+      customer_email: customerEmail,
+      metadata: {
+        job_id: jobId,
+        render_id: renderId,
+      },
+    }),
+  }).then(withJson);
+}
+
+export function finalizeRender({ jobId, renderId }) {
+  return fetch(`${BASE_API_URL}/api/finalize`, {
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      job_id: jobId,
+      render_id: renderId,
+    }),
+  }).then(withJson);
+}
