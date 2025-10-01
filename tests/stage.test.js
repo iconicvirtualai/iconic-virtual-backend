@@ -119,7 +119,12 @@ describe("stage handler", () => {
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { preview_url: "https://vsai/result" });
+    assert.equal(res.body.preview_url, "https://vsai/result");
+    assert.ok(res.body.job_id.startsWith("job_"));
+    assert.equal(res.body.dropbox_path, `/uploads/${res.body.job_id}.jpg`);
+    assert.equal(res.body.image_url, "https://dropbox/link?raw=1");
+    assert.equal(res.body.room_type, "living_room");
+    assert.equal(res.body.style, "scandinavian");
 
     assert.equal(uploadCalls.length, 1);
     const [uploadArgs] = uploadCalls;
