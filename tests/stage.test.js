@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 import { createStageHandler } from "../api/stage.js";
 import { createMockReq, createMockRes } from "./test-utils.js";
 
+function pick(obj, keys) {
+  return keys.reduce((acc, key) => {
+    acc[key] = obj[key];
+    return acc;
+  }, {});
+}
+
 describe("stage handler", () => {
   it("rejects non-POST methods", async () => {
     const handler = createStageHandler({
@@ -83,6 +90,7 @@ describe("stage handler", () => {
     const fetchCalls = [];
 
     const handler = createStageHandler({
+      idGenerator: () => "123",
       dropboxFactory(options) {
         assert.equal(options.accessToken, "token");
         return {
@@ -99,6 +107,7 @@ describe("stage handler", () => {
       async fetchImpl(url, options) {
         fetchCalls.push({ url, options });
         return {
+          ok: true,
           async json() {
             return { result_image_url: "https://vsai/result" };
           },
@@ -119,7 +128,17 @@ describe("stage handler", () => {
     await handler(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { preview_url: "https://vsai/result" });
+    assert.equal(res.body.preview_url, "https://vsai/result");
+    assert.deepEqual(
+      pick(res.body, ["job_id", "dropbox_path", "image_url", "room_type", "style"]),
+      {
+        job_id: "job_123",
+        dropbox_path: "/uploads/job_123.jpg",
+        image_url: "https://dropbox/link?raw=1",
+        room_type: "living_room",
+        style: "scandinavian",
+      },
+    );
 
     assert.equal(uploadCalls.length, 1);
     const [uploadArgs] = uploadCalls;
