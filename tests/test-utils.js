@@ -1,8 +1,9 @@
-export function createMockReq({ method = "GET", body = {}, headers = {} } = {}) {
+export function createMockReq({ method = "GET", body = {}, headers = {}, query = {} } = {}) {
   return {
     method,
     body,
     headers,
+    query,
   };
 }
 
