@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     const link = await dropbox.sharingCreateSharedLinkWithSettings({ path: fileName });
     const imageUrl = link.result.url.replace("?dl=0", "?raw=1");
 
-    // === Send to VirtualStagingAI ===
+    // === Send to Virtual Staging AI ===
     const vsaiResponse = await fetch("https://api.virtualstagingai.app/v1/render/create", {
       method: "POST",
       headers: {
